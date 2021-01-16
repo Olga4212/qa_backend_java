@@ -1,21 +1,14 @@
-import io.restassured.response.Response;
-import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.io.FileUtils;
-import org.hamcrest.Matcher;
+import Resources.Images;
+import Response.ImageResponse;
+import Response.ImageUpdateResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.testng.annotations.DataProvider;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class UpdateTest extends BaseTest {
@@ -25,40 +18,33 @@ public class UpdateTest extends BaseTest {
 
     @BeforeEach
     void setUp() {
-        Response response = given()
-                .headers(headers)
-                .multiPart("image", getResourceFile("image.jpeg"))
-                .expect()
-                .body("success", is(true))
-                .body("status", is(200))
-                .body("data.id", not(emptyOrNullString()))
-                .body("data.link", not(emptyOrNullString()))
+        ImageResponse response = given()
+                .spec(requestAuthSpecification)
+                .multiPart("image", getResourceFile(Images.JPEG_NORMAL))
                 .when()
-                .post("/image")
+                .post(Endpoints.IMAGE_UPLOAD)
                 .prettyPeek()
                 .then()
-                .statusCode(200)
+                .spec(successResponseSpecification)
                 .extract()
-                .response();
+                .response()
+                .as(ImageResponse.class);
+        assertCommonSuccessResponse(response);
+        assertThat(response.getData().getId(), not(emptyOrNullString()));
+        assertThat(response.getData().getLink(), not(emptyOrNullString()));
 
-        uploadedImageId = response
-                .jsonPath()
-                .getString("data.id");
-        uploadedImageHashCode = response
-                .jsonPath()
-                .getString("data.deletehash");
+        uploadedImageId = response.getData().getId();
+        uploadedImageHashCode = response.getData().getDeletehash();
     }
 
     @AfterEach
     void afterEach() {
         given()
-                .headers(headers)
-//                .log()
-//                .all()
+                .spec(requestAuthSpecification)
                 .when()
-                .delete("/image/" + uploadedImageHashCode)
+                .delete(Endpoints.IMAGE, uploadedImageHashCode)
                 .then()
-                .statusCode(200);
+                .spec(successResponseSpecification);
     }
 
 
@@ -84,31 +70,35 @@ public class UpdateTest extends BaseTest {
     }
 
     private void checkTitle(String title) {
-        given()
-                .headers(headers)
-                .expect()
-                .body("success", is(true))
-                .body("status", is(200))
-                .body("data.title", is(title))
+        ImageResponse response = given()
+                .spec(requestAuthSpecification)
                 .when()
-                .get("/image/" + uploadedImageId)
+                .get(Endpoints.IMAGE, uploadedImageId)
                 .prettyPeek()
                 .then()
-                .statusCode(200);
+                .spec(successResponseSpecification)
+                .extract()
+                .response()
+                .as(ImageResponse.class);
+
+        assertCommonSuccessResponse(response);
+        assertThat(response.getData().getTitle(), is(title));
     }
 
     private void updateTitle(String title) {
-        given()
-                .headers(headers)
+        ImageUpdateResponse response = given()
+                .spec(requestAuthSpecification)
                 .param("title", title)
-                .expect()
-                .body("success", is(true))
-                .body("status", is(200))
                 .when()
-                .post("/image/" + uploadedImageId)
+                .post(Endpoints.IMAGE, uploadedImageId)
                 .prettyPeek()
                 .then()
-                .statusCode(200);
+                .spec(successResponseSpecification)
+                .extract()
+                .response()
+                .as(ImageUpdateResponse.class);
+
+        assertCommonSuccessResponse(response);
     }
 }
 

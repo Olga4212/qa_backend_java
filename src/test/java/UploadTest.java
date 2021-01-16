@@ -1,14 +1,18 @@
+import Resources.Images;
+import Response.ImageResponse;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Objects;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class UploadTest extends BaseTest {
@@ -24,132 +28,132 @@ public class UploadTest extends BaseTest {
     void afterEach() {
         if (uploadedImageHashCode != null) {
             given()
-                    .headers(headers)
-//                .log()
-//                .all()
+                    .spec(requestAuthSpecification)
                     .when()
-                    .delete("/image/" + uploadedImageHashCode)
+                    .delete(Endpoints.IMAGE, uploadedImageHashCode)
                     .then()
-                    .statusCode(200);
+                    .spec(successResponseSpecification);
         }
     }
 
     @Test
     void uploadFileByUrlTest() {
-        uploadedImageHashCode = given()
-                .headers(headers)
-                .param("image", "https://icatcare.org/app/uploads/2018/07/Thinking-of-getting-a-cat.png")
-                .expect()
-                .body("success", is(true))
-                .body("status", is(200))
-                .body("data.id", not(emptyOrNullString()))
-                .body("data.link", not(emptyOrNullString()))
+        ImageResponse response = given()
+                .spec(requestAuthSpecification)
+                .param("image", Images.PNG_URL)
                 .when()
-                .post("/image")
+                .post(Endpoints.IMAGE_UPLOAD)
                 .prettyPeek()
                 .then()
-                .statusCode(200)
+                .spec(successResponseSpecification)
                 .extract()
                 .response()
-                .jsonPath()
-                .getString("data.deletehash");
+                .as(ImageResponse.class);
+        assertUploadSuccess(response);
+
+        uploadedImageHashCode = response.getData().getDeletehash();
     }
 
-    @Test
-    void uploadFileBase64Test() throws IOException {
-        byte[] fileContent = FileUtils.readFileToByteArray(getResourceFile("image.jpeg"));
+    private void assertUploadSuccess(ImageResponse response) {
+        assertCommonSuccessResponse(response);
+        assertThat(response.getData().getId(), not(emptyOrNullString()));
+        assertThat(response.getData().getLink(), not(emptyOrNullString()));
+    }
+
+    @ParameterizedTest()
+    @ValueSource(strings = {Images.PNG_NORMAL, Images.JPEG_NORMAL,})
+    void uploadFileBase64Test(String image) throws IOException {
+        byte[] fileContent = FileUtils.readFileToByteArray(getResourceFile(image));
         String fileContentBase64 = Base64.encodeBase64String(fileContent);
 
-        uploadedImageHashCode = given()
-                .headers(headers)
+        ImageResponse response = given()
+                .spec(requestAuthSpecification)
                 .param("image", fileContentBase64)
-                .expect()
-                .body("success", is(true))
-                .body("status", is(200))
-                .body("data.id", not(emptyOrNullString()))
-                .body("data.link", not(emptyOrNullString()))
                 .when()
-                .post("/image")
+                .post(Endpoints.IMAGE_UPLOAD)
                 .prettyPeek()
                 .then()
-                .statusCode(200)
+                .spec(successResponseSpecification)
                 .extract()
                 .response()
-                .jsonPath()
-                .getString("data.deletehash");
+                .as(ImageResponse.class);
+        assertUploadSuccess(response);
+
+        uploadedImageHashCode = response.getData().getDeletehash();
     }
 
-    @Test
-    void uploadFileTest() throws IOException {
-        File file = getResourceFile("image.jpeg");
+    @ParameterizedTest()
+    @ValueSource(strings = {Images.PNG_NORMAL, Images.JPEG_NORMAL,})
+    void uploadFileTest(String image) throws IOException {
+        File file = getResourceFile(image);
 
-        uploadedImageHashCode = given()
-                .headers(headers)
+        ImageResponse response = given()
+                .spec(requestAuthSpecification)
                 .multiPart("image", file)
-                .expect()
-                .body("success", is(true))
-                .body("status", is(200))
-                .body("data.id", not(emptyOrNullString()))
-                .body("data.link", not(emptyOrNullString()))
                 .when()
-                .post("/image")
+                .post(Endpoints.IMAGE_UPLOAD)
                 .prettyPeek()
                 .then()
-                .statusCode(200)
+                .spec(successResponseSpecification)
                 .extract()
                 .response()
-                .jsonPath()
-                .getString("data.deletehash");
+                .as(ImageResponse.class);
+        assertUploadSuccess(response);
+
+        uploadedImageHashCode = response.getData().getDeletehash();
     }
 
     @Test
     void uploadEmptyDataTest() {
-        given()
-                .headers(headers)
+        ImageResponse response = given()
+                .spec(requestAuthSpecification)
                 .param("image", "")
-                .expect()
-                .body("success", is(false))
-                .body("status", is(400))
                 .when()
-                .post("/image")
+                .post(Endpoints.IMAGE_UPLOAD)
                 .prettyPeek()
                 .then()
-                .statusCode(400);
+                .spec(failedResponseSpecification)
+                .extract()
+                .response()
+                .as(ImageResponse.class);
+        assertCommonFailedResponse(response);
+        ;
     }
 
     @Test
     void uploadTextFileTest() throws IOException {
-        File file = getResourceFile("TextFile");
+        File file = getResourceFile(Images.TEXT_FILE);
 
-        given()
-                .headers(headers)
+        ImageResponse response = given()
+                .spec(requestAuthSpecification)
                 .multiPart("image", file)
-                .expect()
-                .body("success", is(false))
-                .body("status", is(400))
                 .when()
-                .post("/image")
+                .post(Endpoints.IMAGE_UPLOAD)
                 .prettyPeek()
                 .then()
-                .statusCode(400);
-
+                .spec(failedResponseSpecification)
+                .extract()
+                .response()
+                .as(ImageResponse.class);
+        assertCommonFailedResponse(response);
     }
 
     @Test
     void uploadBigFileTest() throws IOException {
-        File file = getResourceFile("big.jpg");
+        File file = getResourceFile(Images.JPEG_BIG_10MB);
 
-        given()
-                .headers(headers)
+        ImageResponse response = given()
+                .spec(requestAuthSpecification)
                 .multiPart("image", file)
-                .expect()
-                .body("success", is(false))
-                .body("status", is(400))
                 .when()
-                .post("/image")
+                .post(Endpoints.IMAGE_UPLOAD)
                 .prettyPeek()
                 .then()
-                .statusCode(400);
+                .spec(failedResponseSpecification)
+                .extract()
+                .response()
+                .as(ImageResponse.class);
+        assertCommonFailedResponse(response);
 
     }
 }
