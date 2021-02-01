@@ -42,6 +42,8 @@ public class CreateProductTest {
                 .withTitle(faker.food().ingredient())
                 .withCategoryTitle(Category.FOOD.title)
                 .withPrice((int) (Math.random() * 10000));
+
+        id = 0;
     }
 
     @Test
@@ -89,15 +91,53 @@ public class CreateProductTest {
     public void createProductWithIncorrectFormedBodyTest(String body) {
         Response<Product> response = productService.createProductByString(body)
                 .execute();
-        id = response.body().getId();
         assertThat(response.isSuccessful(), CoreMatchers.is(false));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"РусскоеНазвание", "with space", "我叔叔有最誠實的規定", "\uD83D\uDE0B", "Loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong"})
+    @SneakyThrows
+    void createProductInFoodCategoryWithCustomTitleTest(String title) {
+        Response<Product> response = productService.createProduct(product.withTitle(title))
+                .execute();
+        id = response.body().getId();
+        assertThat(response.isSuccessful(), CoreMatchers.is(true));
+    }
+
+    static Stream<String> createProductInFoodCategoryWithIncorrectPriceData() {
+        List<String> data = new ArrayList<>();
+
+        String title = faker.food().ingredient();
+        String category = Category.FOOD.title;
+
+        // title as int, passes but shouldn't
+        data.add("{\"title\" : \"" + title + "\", \"price\" : 0, \"categoryTitle\" : \"" + category + "\"}");
+
+        // title as null, passes but shouldn't
+        data.add("{\"title\" : \"" + title + "\", \"price\" : -1, \"categoryTitle\" : \"" + category + "\"}");
+
+        // empty title, passes but shouldn't
+        data.add("{\"title\" : \"" + title + "\", \"price\" : 4294967296, \"categoryTitle\" : \"" + category + "\"}");
+
+        return data.stream();
+    }
+
+    @ParameterizedTest()
+    @MethodSource(value = "createProductInFoodCategoryWithIncorrectPriceData")
+    @SneakyThrows
+    void createProductInFoodCategoryWithIncorrectPriceTest(String body) {
+        Response<Product> response = productService.createProductByString(body)
+                .execute();
+        assertThat(response.isSuccessful(), CoreMatchers.is(false));
+    }
 
     @SneakyThrows
     @AfterEach
     void tearDown() {
-        Response<ResponseBody> response = productService.deleteProduct(id).execute();
-        assertThat(response.isSuccessful(), CoreMatchers.is(true));
+        if (id > 0) {
+            Response<ResponseBody> response = productService.deleteProduct(id).execute();
+            assertThat(response.isSuccessful(), CoreMatchers.is(true));
+        }
+
     }
 }
