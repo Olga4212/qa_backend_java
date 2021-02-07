@@ -1,6 +1,12 @@
 package lesson5;
 
 import com.github.javafaker.Faker;
+import lesson5.db.Utils;
+import lesson5.db.dao.CategoriesMapper;
+import lesson5.db.dao.ProductsMapper;
+import lesson5.db.model.Categories;
+import lesson5.db.model.Products;
+import lesson5.util.ConfigUtils;
 import lombok.SneakyThrows;
 import okhttp3.ResponseBody;
 import org.hamcrest.CoreMatchers;
@@ -17,6 +23,8 @@ import lesson5.enums.Category;
 import lesson5.service.ProductService;
 import lesson5.util.RetrofitUtils;
 
+import java.io.Console;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -28,12 +36,18 @@ public class CreateProductTest {
     Product product;
     static Faker faker = new Faker();
 
+    static ProductsMapper productsMapper;
+    static CategoriesMapper categoriesMapper;
+
     int id;
 
     @BeforeAll
-    static void beforeAll() {
+    static void beforeAll() throws IOException {
         productService = RetrofitUtils.getRetrofit()
                 .create(ProductService.class);
+
+        productsMapper = Utils.getProductsMapper("mybatis-config.xml");
+        categoriesMapper = Utils.getCategoriesMapper("mybatis-config.xml");
     }
 
     @BeforeEach
@@ -46,6 +60,17 @@ public class CreateProductTest {
         id = 0;
     }
 
+    void assertThatProductEqualsToDb(int id, Product product)
+    {
+        Products dbProduct = productsMapper.selectByPrimaryKey((long) id);
+        assertThat(dbProduct.getTitle(), CoreMatchers.is(product.getTitle()));
+        assertThat(dbProduct.getPrice(), CoreMatchers.is(product.getPrice()));
+
+        Categories dbCategory = categoriesMapper.selectByPrimaryKey(dbProduct.getCategory_id().intValue());
+
+        assertThat(dbCategory.getTitle(), CoreMatchers.is(product.getCategoryTitle()));
+    }
+
     @Test
     @SneakyThrows
     void createProductInFoodCategoryTest() {
@@ -53,6 +78,25 @@ public class CreateProductTest {
                 .execute();
         id = response.body().getId();
         assertThat(response.isSuccessful(), CoreMatchers.is(true));
+        assertThatProductEqualsToDb(id, product);
+    }
+
+    @Test
+    @SneakyThrows
+    void apiRepresentsDbChangesTest() {
+        Response<Product> response = productService.createProduct(product)
+                .execute();
+        id = response.body().getId();
+        assertThat(response.isSuccessful(), CoreMatchers.is(true));
+
+        Products dbProduct = productsMapper.selectByPrimaryKey((long) id);
+        dbProduct.setTitle("updated title");
+        dbProduct.setPrice(777);
+        productsMapper.updateByPrimaryKey(dbProduct);
+
+        Product productUpdated = productService.getProduct(id).execute().body();
+
+        assertThatProductEqualsToDb(id, productUpdated);
     }
 
     @Test()

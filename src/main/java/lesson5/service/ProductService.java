@@ -6,6 +6,9 @@ import retrofit2.http.*;
 import lesson5.dto.Product;
 
 public interface ProductService {
+    @GET("products/{id}")
+    Call<Product> getProduct(@Path("id") int id);
+
     @POST("products")
     Call<Product> createProduct(@Body Product createProductRequest);
 
